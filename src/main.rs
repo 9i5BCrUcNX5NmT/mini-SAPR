@@ -1,17 +1,84 @@
-use bevy::{color::palettes::css::RED, prelude::*, winit::WinitSettings};
+use bevy::{
+    color::palettes::css::WHITE,
+    dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
+    pbr::wireframe::WireframeConfig,
+    prelude::*,
+    render::{
+        RenderPlugin,
+        settings::{RenderCreation, WgpuFeatures, WgpuSettings},
+    },
+    text::FontSmoothing,
+    winit::WinitSettings,
+};
+
+use crate::{
+    buttons::{button_system, setup_buttons},
+    grid::{GridSettings, setup_grid, update_grid_system},
+    orbit_camera::{OrbitCamera, OrbitCenter, orbit_camera_system, toggle_orbit_mode_system},
+    render::{
+        RenderModes, toggle_lighting_system, toggle_render_mode_system, update_materials_system,
+    },
+};
+
+mod buttons;
+mod grid;
+mod orbit_camera;
+mod render;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins((
+            DefaultPlugins.set(RenderPlugin {
+                render_creation: RenderCreation::Automatic(WgpuSettings {
+                    // Включаем поддержку wireframe для desktop платформ
+                    features: WgpuFeatures::POLYGON_MODE_LINE,
+                    ..default()
+                }),
+                ..default()
+            }),
+            FpsOverlayPlugin {
+                config: FpsOverlayConfig {
+                    text_config: TextFont {
+                        // Here we define size of our overlay
+                        font_size: 42.0,
+                        // If we want, we can use a custom font
+                        font: default(),
+                        // We could also disable font smoothing,
+                        font_smoothing: FontSmoothing::default(),
+                        ..default()
+                    },
+                    // We can also change color of the overlay
+                    text_color: Color::srgb(0.0, 1.0, 0.0),
+                    // We can also set the refresh interval for the FPS counter
+                    refresh_interval: core::time::Duration::from_millis(100),
+                    enabled: true,
+                },
+            },
+        ))
         .insert_resource(WinitSettings::desktop_app())
-        .add_systems(Startup, setup)
-        .add_systems(Update, button_system)
+        .insert_resource(OrbitCenter::default())
+        .insert_resource(OrbitCamera::default())
+        .insert_resource(GridSettings::default())
+        .insert_resource(RenderModes::default())
+        .insert_resource(WireframeConfig {
+            global: false,
+            default_color: WHITE.into(),
+        })
+        .add_systems(Startup, (setup, setup_grid, setup_buttons))
+        .add_systems(
+            Update,
+            (
+                button_system,
+                orbit_camera_system,
+                toggle_orbit_mode_system,
+                update_grid_system,
+                toggle_render_mode_system,
+                update_materials_system,
+                toggle_lighting_system,
+            ),
+        )
         .run();
 }
-
-const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
-const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
-const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 
 #[derive(Component)]
 struct Id(u32);
@@ -19,48 +86,6 @@ struct Id(u32);
 #[derive(Resource)]
 struct CameraState {
     moved: bool,
-}
-
-fn button_system(
-    mut interaction_query: Query<(&Interaction, &Id), (Changed<Interaction>, With<Button>)>,
-    mut query_camera: Query<&mut Transform, With<Camera>>,
-    mut state_camera: ResMut<CameraState>,
-
-    // to spawn cube
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    for (interaction, id) in &mut interaction_query {
-        match *interaction {
-            Interaction::Pressed => match id.0 {
-                1 => {
-                    for mut transform in &mut query_camera {
-                        if !state_camera.moved {
-                            *transform =
-                                Transform::from_xyz(0.0, 0.0, 18.0).looking_at(Vec3::ZERO, Vec3::Y);
-                        } else {
-                            *transform =
-                                Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y);
-                        }
-                    }
-
-                    state_camera.moved = !state_camera.moved;
-                }
-                2 => {
-                    // cube
-                    commands.spawn((
-                        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-                        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
-                        Transform::from_xyz(0.0, 0.5, 0.0),
-                    ));
-                }
-                _ => {}
-            },
-            Interaction::Hovered => {}
-            Interaction::None => {}
-        }
-    }
 }
 
 fn setup(
@@ -91,46 +116,4 @@ fn setup(
     ));
 
     commands.insert_resource(CameraState { moved: false });
-
-    commands.spawn(button("Camera".into(), 1, 100.0, 100.0));
-    commands.spawn(button("Spawn Cube".into(), 2, 50.0, 50.0));
-}
-
-fn button(name: String, id: u32, x: f32, y: f32) -> impl Bundle + use<> {
-    (
-        Node {
-            width: Val::Percent(x),
-            height: Val::Percent(y),
-            align_items: AlignItems::Baseline,
-            justify_content: JustifyContent::Center,
-            ..default()
-        },
-        children![(
-            Button,
-            Node {
-                width: Val::Px(75.0),
-                height: Val::Px(32.5),
-                border: UiRect::all(Val::Px(5.0)),
-                // horizontally center child text
-                justify_content: JustifyContent::Center,
-                // vertically center child text
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BorderColor(Color::BLACK),
-            BorderRadius::MAX,
-            BackgroundColor(NORMAL_BUTTON),
-            children![(
-                Text::new(name),
-                TextFont {
-                    // font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 8.0,
-                    ..default()
-                },
-                TextColor(Color::srgb(0.9, 0.9, 0.9)),
-                TextShadow::default(),
-            )],
-            Id(id),
-        )],
-    )
 }
