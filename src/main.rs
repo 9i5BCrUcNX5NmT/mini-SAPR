@@ -1,7 +1,7 @@
 use bevy::{
     color::palettes::css::WHITE,
     dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
-    pbr::wireframe::WireframeConfig,
+    pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
     render::{
         RenderPlugin,
@@ -54,6 +54,7 @@ fn main() {
                     enabled: true,
                 },
             },
+            WireframePlugin::default(),
         ))
         .insert_resource(WinitSettings::desktop_app())
         .insert_resource(OrbitCenter::default())
