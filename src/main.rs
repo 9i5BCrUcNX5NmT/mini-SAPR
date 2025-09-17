@@ -56,7 +56,7 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Событийный САПР - Построение отрезков".into(),
-                        present_mode: bevy::window::PresentMode::Immediate,
+                        present_mode: bevy::window::PresentMode::default(),
                         ..default()
                     }),
                     ..default()
