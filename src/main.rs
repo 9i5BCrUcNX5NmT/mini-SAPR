@@ -12,7 +12,16 @@ use bevy::{
 
 use crate::{
     buttons::{button_system, setup_buttons, update_button_visuals},
+    camera_system::{
+        camera_drag_pan_system, camera_scroll_zoom_system, center_camera_on_lines_system,
+        cursor_coordinates_system, handle_camera_reset_events, handle_camera_toggle_events,
+        CameraResetEvent, CameraToggleEvent, CameraZoom, CameraZoomEvent,
+    },
     grid::{setup_grid, toggle_grid_visibility, update_grid_system, GridSettings},
+    line_drawing::{
+        clear_lines_system, line_drawing_system, line_info_system, toggle_line_drawing_system,
+        LineDrawingState, LineSettings,
+    },
     orbit_camera::{
         orbit_camera_system, orbit_camera_zoom_system, reset_orbit_camera_system,
         toggle_orbit_mode_system, OrbitCamera, OrbitCenter,
@@ -24,7 +33,9 @@ use crate::{
 };
 
 mod buttons;
+mod camera_system;
 mod grid;
+mod line_drawing;
 mod orbit_camera;
 mod render;
 
@@ -32,12 +43,11 @@ fn main() {
     let mut app = App::new();
 
     app
-        // Оптимизированные плагины с conditional features
+        // Оптимизированные плагины
         .add_plugins((
             DefaultPlugins
                 .set(RenderPlugin {
                     render_creation: RenderCreation::Automatic(WgpuSettings {
-                        // Включаем поддержку wireframe для desktop платформ
                         features: WgpuFeatures::POLYGON_MODE_LINE,
                         ..default()
                     }),
@@ -45,8 +55,7 @@ fn main() {
                 })
                 .set(WindowPlugin {
                     primary_window: Some(Window {
-                        title: "Оптимизированный САПР".into(),
-                        // Отключаем VSync для лучшей производительности в дебаге
+                        title: "Событийный САПР - Построение отрезков".into(),
                         present_mode: bevy::window::PresentMode::Immediate,
                         ..default()
                     }),
@@ -67,36 +76,65 @@ fn main() {
             },
             WireframePlugin::default(),
         ))
-        // Оптимизированные настройки приложения
+        // ВАЖНО: Регистрируем события
+        .add_event::<CameraToggleEvent>()
+        .add_event::<CameraZoomEvent>()
+        .add_event::<CameraResetEvent>()
+        // Ресурсы
         .insert_resource(WinitSettings::desktop_app())
         .insert_resource(OrbitCenter::default())
         .insert_resource(OrbitCamera::default())
         .insert_resource(GridSettings::default())
         .insert_resource(RenderModes::default())
         .insert_resource(WireframeConfig::default())
-        // Отключаем многопоточность для Update schedule если проект простой
-        // Раскомментируйте следующие строки для очень простых проектов:
-        /*
-        .edit_schedule(Update, |schedule| {
-            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
-        })
-        */
-        // Startup системы - выполняются один раз при запуске
+        .insert_resource(LineDrawingState::default())
+        .insert_resource(LineSettings::default())
+        .insert_resource(CameraZoom::default())
+        // Startup системы
         .add_systems(Startup, (setup, setup_grid, setup_buttons))
-        // Оптимизированная организация систем с явным порядком
+        // Update системы с событийной архитектурой
         .add_systems(
             Update,
             (
-                // Системы ввода - выполняются первыми
-                toggle_orbit_mode_system,
-                reset_orbit_camera_system,
-                orbit_camera_zoom_system,
-                toggle_render_mode_system,
-                display_render_info_system,
-                save_render_settings_system,
-                // Системы обработки логики
-                (button_system, orbit_camera_system, update_button_visuals).chain(), // Явный порядок выполнения
-                // Системы рендеринга - выполняются последними
+                // === СИСТЕМЫ ВВОДА И ОТПРАВКИ СОБЫТИЙ ===
+                (
+                    // Клавиатурные системы, которые отправляют события
+                    toggle_orbit_mode_system,
+                    reset_orbit_camera_system,
+                    orbit_camera_zoom_system,
+                    toggle_render_mode_system,
+                    display_render_info_system,
+                    save_render_settings_system,
+                    toggle_line_drawing_system,
+                    clear_lines_system,
+                    line_info_system,
+                )
+                    .chain(),
+                // === СИСТЕМЫ UI И ВЗАИМОДЕЙСТВИЯ ===
+                (
+                    // UI системы, которые отправляют события
+                    button_system, // Теперь отправляет события вместо прямых вызовов
+                    update_button_visuals,
+                    line_drawing_system,
+                )
+                    .chain(),
+                // === ОБРАБОТЧИКИ СОБЫТИЙ ===
+                (
+                    // Системы, которые слушают и обрабатывают события
+                    handle_camera_toggle_events, // Обрабатывает CameraToggleEvent
+                    handle_camera_reset_events,  // Обрабатывает CameraResetEvent
+                )
+                    .chain(),
+                // === ОБЫЧНЫЕ СИСТЕМЫ ЛОГИКИ ===
+                (
+                    orbit_camera_system,
+                    camera_drag_pan_system,
+                    camera_scroll_zoom_system,
+                    cursor_coordinates_system,
+                    center_camera_on_lines_system,
+                )
+                    .chain(),
+                // === СИСТЕМЫ РЕНДЕРИНГА ===
                 (
                     update_grid_system,
                     toggle_grid_visibility,
@@ -117,19 +155,17 @@ pub struct CameraState {
     pub moved: bool,
 }
 
-// Оптимизированная система настройки сцены
+// Setup функция (без изменений)
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Создаем материал один раз и переиспользуем
     let base_material = materials.add(StandardMaterial {
         base_color: Color::WHITE,
         ..default()
     });
 
-    // Circular base
     commands.spawn((
         Mesh3d(meshes.add(Circle::new(4.0))),
         MeshMaterial3d(base_material),
@@ -137,10 +173,9 @@ fn setup(
         Name::new("GroundPlane"),
     ));
 
-    // Оптимизированное освещение
     commands.spawn((
         PointLight {
-            intensity: 10_000_000.0, // Bevy 0.16 интенсивность
+            intensity: 10_000_000.0,
             shadows_enabled: true,
             shadow_depth_bias: 0.02,
             shadow_normal_bias: 0.6,
@@ -150,13 +185,11 @@ fn setup(
         Name::new("MainLight"),
     ));
 
-    // Camera с оптимизированными настройками
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
         Name::new("MainCamera"),
     ));
 
-    // Инициализируем состояние камеры
     commands.insert_resource(CameraState { moved: false });
 }

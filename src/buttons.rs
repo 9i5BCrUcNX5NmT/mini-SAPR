@@ -1,17 +1,18 @@
 use bevy::prelude::*;
 
-use crate::{CameraState, Id};
+use crate::{camera_system::CameraToggleEvent, CameraState, Id};
 
 const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
 
-// Улучшенная система кнопок с оптимизациями
+// Обновленная система кнопок с событиями
 pub fn button_system(
     // Используем Change Detection для оптимизации - обрабатываем только изменившиеся кнопки
     interaction_query: Query<(&Interaction, &Id), (Changed<Interaction>, With<Button>)>,
-    // Разделяем запросы для лучшей производительности
-    mut query_camera: Query<&mut Transform, (With<Camera3d>, Without<Button>)>,
-    mut state_camera: ResMut<CameraState>,
-    // Spawn cube resources
+
+    // EventWriter'ы для отправки событий
+    mut camera_toggle_events: EventWriter<CameraToggleEvent>,
+
+    // Spawn cube resources (остались без изменений)
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -26,20 +27,12 @@ pub fn button_system(
         if let Interaction::Pressed = *interaction {
             match id.0 {
                 1 => {
-                    // Оптимизированная логика камеры с single_mut для единичной камеры
-                    if let Ok(mut transform) = query_camera.single_mut() {
-                        if !state_camera.moved {
-                            *transform =
-                                Transform::from_xyz(0.0, 18.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y);
-                        } else {
-                            *transform =
-                                Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y);
-                        }
-                        state_camera.moved = !state_camera.moved;
-                    }
+                    // Отправляем событие вместо прямого вызова системы
+                    camera_toggle_events.write(CameraToggleEvent);
+                    info!("Camera toggle event sent");
                 }
                 2 => {
-                    // Оптимизированное создание куба с переиспользованием материала
+                    // Оптимизированное создание куба (без изменений)
                     let cube_material = materials.add(StandardMaterial {
                         base_color: Color::srgb_u8(124, 144, 255),
                         ..default()
@@ -49,7 +42,7 @@ pub fn button_system(
                         Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
                         MeshMaterial3d(cube_material),
                         Transform::from_xyz(0.0, 0.5, 0.0),
-                        Name::new("SpawnedCube"), // Добавляем имя для отладки
+                        Name::new("SpawnedCube"),
                     ));
                 }
                 _ => {}
@@ -109,7 +102,6 @@ pub fn setup_buttons(mut commands: Commands) {
 // Система для очистки интерфейса кнопок при изменении состояния
 pub fn update_button_visuals(
     mut button_query: Query<&mut BackgroundColor, (With<Button>, Changed<Interaction>)>,
-    // interaction_query: Query<&Interaction, With<Button>>,
 ) {
     for mut color in &mut button_query {
         // Можно добавить визуальную обратную связь для кнопок
