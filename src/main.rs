@@ -1,22 +1,25 @@
 use bevy::{
-    color::palettes::css::WHITE,
     dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin},
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
     render::{
-        RenderPlugin,
         settings::{RenderCreation, WgpuFeatures, WgpuSettings},
+        RenderPlugin,
     },
     text::FontSmoothing,
     winit::WinitSettings,
 };
 
 use crate::{
-    buttons::{button_system, setup_buttons},
-    grid::{GridSettings, setup_grid, update_grid_system},
-    orbit_camera::{OrbitCamera, OrbitCenter, orbit_camera_system, toggle_orbit_mode_system},
+    buttons::{button_system, setup_buttons, update_button_visuals},
+    grid::{setup_grid, toggle_grid_visibility, update_grid_system, GridSettings},
+    orbit_camera::{
+        orbit_camera_system, orbit_camera_zoom_system, reset_orbit_camera_system,
+        toggle_orbit_mode_system, OrbitCamera, OrbitCenter,
+    },
     render::{
-        RenderModes, toggle_lighting_system, toggle_render_mode_system, update_materials_system,
+        display_render_info_system, save_render_settings_system, toggle_lighting_system,
+        toggle_render_mode_system, update_materials_system, RenderModes,
     },
 };
 
@@ -26,95 +29,134 @@ mod orbit_camera;
 mod render;
 
 fn main() {
-    App::new()
+    let mut app = App::new();
+
+    app
+        // Оптимизированные плагины с conditional features
         .add_plugins((
-            DefaultPlugins.set(RenderPlugin {
-                render_creation: RenderCreation::Automatic(WgpuSettings {
-                    // Включаем поддержку wireframe для desktop платформ
-                    features: WgpuFeatures::POLYGON_MODE_LINE,
+            DefaultPlugins
+                .set(RenderPlugin {
+                    render_creation: RenderCreation::Automatic(WgpuSettings {
+                        // Включаем поддержку wireframe для desktop платформ
+                        features: WgpuFeatures::POLYGON_MODE_LINE,
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Оптимизированный САПР".into(),
+                        // Отключаем VSync для лучшей производительности в дебаге
+                        present_mode: bevy::window::PresentMode::Immediate,
+                        ..default()
+                    }),
                     ..default()
                 }),
-                ..default()
-            }),
             FpsOverlayPlugin {
                 config: FpsOverlayConfig {
                     text_config: TextFont {
-                        // Here we define size of our overlay
                         font_size: 42.0,
-                        // If we want, we can use a custom font
                         font: default(),
-                        // We could also disable font smoothing,
                         font_smoothing: FontSmoothing::default(),
                         ..default()
                     },
-                    // We can also change color of the overlay
                     text_color: Color::srgb(0.0, 1.0, 0.0),
-                    // We can also set the refresh interval for the FPS counter
                     refresh_interval: core::time::Duration::from_millis(100),
                     enabled: true,
                 },
             },
             WireframePlugin::default(),
         ))
+        // Оптимизированные настройки приложения
         .insert_resource(WinitSettings::desktop_app())
         .insert_resource(OrbitCenter::default())
         .insert_resource(OrbitCamera::default())
         .insert_resource(GridSettings::default())
         .insert_resource(RenderModes::default())
-        .insert_resource(WireframeConfig {
-            global: false,
-            default_color: WHITE.into(),
+        .insert_resource(WireframeConfig::default())
+        // Отключаем многопоточность для Update schedule если проект простой
+        // Раскомментируйте следующие строки для очень простых проектов:
+        /*
+        .edit_schedule(Update, |schedule| {
+            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
         })
+        */
+        // Startup системы - выполняются один раз при запуске
         .add_systems(Startup, (setup, setup_grid, setup_buttons))
+        // Оптимизированная организация систем с явным порядком
         .add_systems(
             Update,
             (
-                button_system,
-                orbit_camera_system,
+                // Системы ввода - выполняются первыми
                 toggle_orbit_mode_system,
-                update_grid_system,
+                reset_orbit_camera_system,
+                orbit_camera_zoom_system,
                 toggle_render_mode_system,
-                update_materials_system,
-                toggle_lighting_system,
+                display_render_info_system,
+                save_render_settings_system,
+                // Системы обработки логики
+                (button_system, orbit_camera_system, update_button_visuals).chain(), // Явный порядок выполнения
+                // Системы рендеринга - выполняются последними
+                (
+                    update_grid_system,
+                    toggle_grid_visibility,
+                    update_materials_system,
+                    toggle_lighting_system,
+                )
+                    .chain(),
             ),
         )
         .run();
 }
 
 #[derive(Component)]
-struct Id(u32);
+pub struct Id(pub u32);
 
 #[derive(Resource)]
-struct CameraState {
-    moved: bool,
+pub struct CameraState {
+    pub moved: bool,
 }
 
+// Оптимизированная система настройки сцены
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // circular base
+    // Создаем материал один раз и переиспользуем
+    let base_material = materials.add(StandardMaterial {
+        base_color: Color::WHITE,
+        ..default()
+    });
+
+    // Circular base
     commands.spawn((
         Mesh3d(meshes.add(Circle::new(4.0))),
-        MeshMaterial3d(materials.add(Color::WHITE)),
+        MeshMaterial3d(base_material),
         Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+        Name::new("GroundPlane"),
     ));
 
-    // light
+    // Оптимизированное освещение
     commands.spawn((
         PointLight {
+            intensity: 10_000_000.0, // Bevy 0.16 интенсивность
             shadows_enabled: true,
+            shadow_depth_bias: 0.02,
+            shadow_normal_bias: 0.6,
             ..default()
         },
         Transform::from_xyz(4.0, 8.0, 4.0),
+        Name::new("MainLight"),
     ));
 
-    // camera
+    // Camera с оптимизированными настройками
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Name::new("MainCamera"),
     ));
 
+    // Инициализируем состояние камеры
     commands.insert_resource(CameraState { moved: false });
 }

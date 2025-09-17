@@ -8,12 +8,15 @@ use crate::render::RenderModes;
 #[derive(Component)]
 pub struct GridLine;
 
+#[derive(Component)]
+pub struct GridAxis;
+
 #[derive(Resource)]
 pub struct GridSettings {
-    size: f32,       // размер сетки (сколько единиц в каждую сторону)
-    step: f32,       // шаг сетки
-    line_width: f32, // толщина линий
-    color: Color,    // цвет линий сетки
+    pub size: f32,       // размер сетки (сколько единиц в каждую сторону)
+    pub step: f32,       // шаг сетки
+    pub line_width: f32, // толщина линий
+    pub color: Color,    // цвет линий сетки
 }
 
 impl Default for GridSettings {
@@ -27,6 +30,37 @@ impl Default for GridSettings {
     }
 }
 
+// Кэшированные материалы сетки для переиспользования
+#[derive(Resource)]
+pub struct GridMaterials {
+    pub grid_material: Handle<StandardMaterial>,
+    pub axis_x_material: Handle<StandardMaterial>,
+    pub axis_z_material: Handle<StandardMaterial>,
+}
+
+impl GridMaterials {
+    fn new(materials: &mut ResMut<Assets<StandardMaterial>>, grid_color: Color) -> Self {
+        Self {
+            grid_material: materials.add(StandardMaterial {
+                base_color: grid_color,
+                unlit: true,
+                ..default()
+            }),
+            axis_x_material: materials.add(StandardMaterial {
+                base_color: RED.into(),
+                unlit: true,
+                ..default()
+            }),
+            axis_z_material: materials.add(StandardMaterial {
+                base_color: BLUE.into(),
+                unlit: true,
+                ..default()
+            }),
+        }
+    }
+}
+
+// Оптимизированная система настройки сетки
 pub fn setup_grid(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -34,106 +68,142 @@ pub fn setup_grid(
     grid_settings: Res<GridSettings>,
     render_modes: Res<RenderModes>,
 ) {
+    // Ранний выход если сетка не должна быть видна
     if !render_modes.grid_visible {
         return;
     }
 
-    let material = materials.add(StandardMaterial {
-        base_color: grid_settings.color,
-        unlit: true,
-        ..default()
-    });
+    // Создаем кэшированные материалы
+    let grid_materials = GridMaterials::new(&mut materials, grid_settings.color);
 
-    // Создаем вертикальные линии (параллельные оси Y)
-    for i in 0..=(2.0 * grid_settings.size / grid_settings.step) as i32 {
+    // Предварительно создаем мешы для переиспользования
+    let vertical_mesh = meshes.add(Cuboid::new(
+        grid_settings.line_width,
+        0.01,
+        2.0 * grid_settings.size,
+    ));
+
+    let horizontal_mesh = meshes.add(Cuboid::new(
+        2.0 * grid_settings.size,
+        0.01,
+        grid_settings.line_width,
+    ));
+
+    let axis_x_mesh = meshes.add(Cuboid::new(
+        2.0 * grid_settings.size,
+        0.02,
+        grid_settings.line_width * 2.0,
+    ));
+
+    let axis_z_mesh = meshes.add(Cuboid::new(
+        grid_settings.line_width * 2.0,
+        0.02,
+        2.0 * grid_settings.size,
+    ));
+
+    let grid_count = (2.0 * grid_settings.size / grid_settings.step) as i32 + 1;
+
+    // Создаем все вертикальные линии сразу
+    for i in 0..=grid_count {
         let x = -grid_settings.size + i as f32 * grid_settings.step;
-
         commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(
-                grid_settings.line_width,
-                0.01,
-                2.0 * grid_settings.size,
-            ))),
-            MeshMaterial3d(material.clone()),
+            Mesh3d(vertical_mesh.clone()),
+            MeshMaterial3d(grid_materials.grid_material.clone()),
             Transform::from_xyz(x, 0.0, 0.0),
             GridLine,
+            Name::new(format!("GridLine_Vertical_{}", i)),
         ));
     }
 
-    // Создаем горизонтальные линии (параллельные оси X)
-    for i in 0..=(2.0 * grid_settings.size / grid_settings.step) as i32 {
+    // Создаем все горизонтальные линии сразу
+    for i in 0..=grid_count {
         let z = -grid_settings.size + i as f32 * grid_settings.step;
-
         commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(
-                2.0 * grid_settings.size,
-                0.01,
-                grid_settings.line_width,
-            ))),
-            MeshMaterial3d(material.clone()),
+            Mesh3d(horizontal_mesh.clone()),
+            MeshMaterial3d(grid_materials.grid_material.clone()),
             Transform::from_xyz(0.0, 0.0, z),
             GridLine,
+            Name::new(format!("GridLine_Horizontal_{}", i)),
         ));
     }
 
-    // Создаем оси координат (более толстые и яркие)
-    let axis_material = materials.add(StandardMaterial {
-        base_color: Color::WHITE,
-        unlit: true,
-        ..default()
-    });
-
-    // Ось X (красная)
+    // Создаем оси координат
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(
-            2.0 * grid_settings.size,
-            0.02,
-            grid_settings.line_width * 2.0,
-        ))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: RED.into(),
-            unlit: true,
-            ..default()
-        })),
+        Mesh3d(axis_x_mesh),
+        MeshMaterial3d(grid_materials.axis_x_material.clone()),
         Transform::from_xyz(0.0, 0.01, 0.0),
-        GridLine,
+        GridAxis,
+        Name::new("GridAxis_X"),
     ));
 
-    // Ось Z (синяя, представляет Y в 2D)
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(
-            grid_settings.line_width * 2.0,
-            0.02,
-            2.0 * grid_settings.size,
-        ))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: BLUE.into(),
-            unlit: true,
-            ..default()
-        })),
+        Mesh3d(axis_z_mesh),
+        MeshMaterial3d(grid_materials.axis_z_material.clone()),
         Transform::from_xyz(0.0, 0.01, 0.0),
-        GridLine,
+        GridAxis,
+        Name::new("GridAxis_Z"),
     ));
+
+    // Сохраняем материалы как ресурс для переиспользования
+    commands.insert_resource(grid_materials);
 }
 
-// Система для обновления сетки при изменении настроек
+// Оптимизированная система обновления сетки с Change Detection
 pub fn update_grid_system(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    meshes: ResMut<Assets<Mesh>>,
+    materials: ResMut<Assets<StandardMaterial>>,
     grid_settings: Res<GridSettings>,
     render_modes: Res<RenderModes>,
-    grid_query: Query<Entity, With<GridLine>>,
+    grid_query: Query<Entity, Or<(With<GridLine>, With<GridAxis>)>>,
+    grid_materials: Option<Res<GridMaterials>>,
 ) {
-    if grid_settings.is_changed() || render_modes.is_changed() {
-        // Удаляем старую сетку
-        for entity in grid_query.iter() {
+    // Проверяем изменения только необходимых ресурсов
+    let settings_changed = grid_settings.is_changed();
+    let render_changed = render_modes.is_changed();
+
+    if !settings_changed && !render_changed {
+        return; // Ранний выход если ничего не изменилось
+    }
+
+    // Удаляем старую сетку только при необходимости
+    if settings_changed || (render_changed && !render_modes.grid_visible) {
+        // Используем batch операции для лучшей производительности
+        let entities_to_despawn: Vec<Entity> = grid_query.iter().collect();
+        for entity in entities_to_despawn {
             commands.entity(entity).despawn();
         }
 
-        // Создаем новую сетку только если она должна быть видна
-        if render_modes.grid_visible {
-            setup_grid(commands, meshes, materials, grid_settings, render_modes);
+        // Удаляем кэшированные материалы если настройки изменились
+        if settings_changed && grid_materials.is_some() {
+            commands.remove_resource::<GridMaterials>();
         }
     }
+
+    // Создаем новую сетку только если она должна быть видна
+    if render_modes.grid_visible {
+        setup_grid(commands, meshes, materials, grid_settings, render_modes);
+    }
+}
+
+// Система для переключения видимости сетки без пересоздания
+pub fn toggle_grid_visibility(
+    mut grid_query: Query<&mut Visibility, Or<(With<GridLine>, With<GridAxis>)>>,
+    render_modes: Res<RenderModes>,
+) {
+    // Используем Change Detection для оптимизации
+    if !render_modes.is_changed() {
+        return;
+    }
+
+    let visibility = if render_modes.grid_visible {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
+
+    // Используем for_each для лучшей производительности
+    grid_query.par_iter_mut().for_each(|mut vis| {
+        *vis = visibility;
+    });
 }

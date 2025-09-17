@@ -1,39 +1,81 @@
 [package]
 name = "cursovaia"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
-# Enable a small amount of optimization in the dev profile.
+[features]
+# Функция для разработки с быстрой компиляцией
+dev = ["bevy/dynamic_linking", "bevy/file_watcher", "bevy/asset_processor"]
+# Функции для включения дополнительных инструментов разработки
+inspector = ["bevy-inspector-egui"]
+profiler = ["puffin", "puffin_egui"]
+
+# Включить небольшую оптимизацию в debug режиме
 [profile.dev]
 opt-level = 1
+debug = true
+overflow-checks = true
 
-# Enable a large amount of optimization in the dev profile for dependencies.
+# Включить высокие оптимизации для зависимостей (включая Bevy), но не для нашего кода
 [profile.dev.package."*"]
 opt-level = 3
 
-# Enable more optimization in the release profile at the cost of compile time.
+# Включить больше оптимизации в release профиле за счет времени компиляции
 [profile.release]
-# Compile the entire crate as one unit.
-# Slows compile times, marginal improvements.
+# Компилировать весь крейт как одну единицу
+# Замедляет компиляцию, незначительные улучшения
 codegen-units = 1
-# Do a second optimization pass over the entire program, including dependencies.
-# Slows compile times, marginal improvements.
+# Сделать второй проход оптимизации по всей программе, включая зависимости
+# Замедляет компиляцию, незначительные улучшения
 lto = "thin"
+# Включить дополнительные оптимизации
+opt-level = 3
+debug = false
+overflow-checks = false
+panic = "abort"
 
-# Optimize for size in the wasm-release profile to reduce load times and bandwidth usage on web.
+# Оптимизировать для размера в wasm-release профиле для уменьшения времени загрузки
 [profile.wasm-release]
-# Default to release profile values.
+# По умолчанию к значениям release профиля
 inherits = "release"
-# Optimize with size in mind (also try "z", sometimes it is better).
-# Slightly slows compile times, great improvements to file size and runtime performance.
+# Оптимизировать с учетом размера (также попробуйте "z", иногда лучше)
+# Немного замедляет компиляцию, отличные улучшения размера файла и производительности
 opt-level = "s"
-# Strip all debugging information from the binary to slightly reduce file size.
+# Удалить всю отладочную информацию из бинарника для небольшого уменьшения размера файла
 strip = "debuginfo"
 
 [dependencies]
 bevy = { version = "0.16.1", features = [
-    "dynamic_linking",
     "bevy_dev_tools",
     "bevy_text",
     "bevy_color",
+    "bevy_winit",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_sprite",
+    "bevy_ui",
+    "bevy_asset",
+    "bevy_scene",
+    # "bevy_gltf",
+    # "bevy_animation",
+    # "png",
+    # "hdr",
+    # "vorbis",
+    # "x11",
+    "file_watcher",
+    "multi_threaded",
 ] }
+
+# Опциональные зависимости для профилирования и отладки
+[dependencies.bevy-inspector-egui]
+version = "0.33"
+optional = true
+
+[dependencies.puffin]
+version = "0.19"
+optional = true
+
+[dependencies.puffin_egui]
+version = "0.29"
+optional = true
