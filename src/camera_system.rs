@@ -1,16 +1,6 @@
 use bevy::prelude::*;
 
-// Определяем события для различных действий камеры
-#[derive(Event)]
-pub struct CameraToggleEvent;
-
-#[derive(Event)]
-pub struct CameraZoomEvent {
-    pub zoom_delta: f32,
-}
-
-#[derive(Event)]
-pub struct CameraResetEvent;
+use crate::events::{CameraResetEvent, CameraToggleEvent};
 
 // Ресурс для управления масштабированием камеры
 #[derive(Resource)]
