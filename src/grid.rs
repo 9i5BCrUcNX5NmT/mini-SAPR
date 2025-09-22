@@ -1,9 +1,8 @@
+use crate::{events::GridStepChangeEvent, render::RenderModes};
 use bevy::{
     color::palettes::css::{BLUE, RED},
     prelude::*,
 };
-
-use crate::render::RenderModes;
 
 #[derive(Component)]
 pub struct GridLine;
@@ -60,7 +59,7 @@ impl GridMaterials {
     }
 }
 
-// Оптимизированная система настройки сетки
+// Оптимизированная система настройки сетки для Bevy 0.15+
 pub fn setup_grid(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -82,19 +81,16 @@ pub fn setup_grid(
         0.01,
         2.0 * grid_settings.size,
     ));
-
     let horizontal_mesh = meshes.add(Cuboid::new(
         2.0 * grid_settings.size,
         0.01,
         grid_settings.line_width,
     ));
-
     let axis_x_mesh = meshes.add(Cuboid::new(
         2.0 * grid_settings.size,
         0.02,
         grid_settings.line_width * 2.0,
     ));
-
     let axis_z_mesh = meshes.add(Cuboid::new(
         grid_settings.line_width * 2.0,
         0.02,
@@ -103,45 +99,53 @@ pub fn setup_grid(
 
     let grid_count = (2.0 * grid_settings.size / grid_settings.step) as i32 + 1;
 
-    // Создаем все вертикальные линии сразу
+    // Создаем все вертикальные линии сразу - Bevy 0.15+ синтаксис
     for i in 0..=grid_count {
         let x = -grid_settings.size + i as f32 * grid_settings.step;
         commands.spawn((
+            // Bevy 0.15+: Используем Mesh3d и MeshMaterial3d
             Mesh3d(vertical_mesh.clone()),
             MeshMaterial3d(grid_materials.grid_material.clone()),
             Transform::from_xyz(x, 0.0, 0.0),
             GridLine,
             Name::new(format!("GridLine_Vertical_{}", i)),
+            // Transform и Visibility добавляются автоматически
         ));
     }
 
-    // Создаем все горизонтальные линии сразу
+    // Создаем все горизонтальные линии сразу - Bevy 0.15+ синтаксис
     for i in 0..=grid_count {
         let z = -grid_settings.size + i as f32 * grid_settings.step;
         commands.spawn((
+            // Bevy 0.15+: Используем Mesh3d и MeshMaterial3d
             Mesh3d(horizontal_mesh.clone()),
             MeshMaterial3d(grid_materials.grid_material.clone()),
             Transform::from_xyz(0.0, 0.0, z),
             GridLine,
             Name::new(format!("GridLine_Horizontal_{}", i)),
+            // Transform и Visibility добавляются автоматически
         ));
     }
 
-    // Создаем оси координат
+    // Создаем оси координат - Bevy 0.15+ синтаксис
     commands.spawn((
+        // Bevy 0.15+: Mesh3d и MeshMaterial3d
         Mesh3d(axis_x_mesh),
         MeshMaterial3d(grid_materials.axis_x_material.clone()),
         Transform::from_xyz(0.0, 0.01, 0.0),
         GridAxis,
         Name::new("GridAxis_X"),
+        // Transform и Visibility добавляются автоматически
     ));
 
     commands.spawn((
+        // Bevy 0.15+: Mesh3d и MeshMaterial3d
         Mesh3d(axis_z_mesh),
         MeshMaterial3d(grid_materials.axis_z_material.clone()),
         Transform::from_xyz(0.0, 0.01, 0.0),
         GridAxis,
         Name::new("GridAxis_Z"),
+        // Transform и Visibility добавляются автоматически
     ));
 
     // Сохраняем материалы как ресурс для переиспользования
@@ -202,8 +206,19 @@ pub fn toggle_grid_visibility(
         Visibility::Hidden
     };
 
-    // Используем for_each для лучшей производительности
+    // Используем par_iter_mut для лучшей производительности
     grid_query.par_iter_mut().for_each(|mut vis| {
         *vis = visibility;
     });
+}
+
+/// Система обработки событий изменения шага сетки (перенесена из main.rs)
+pub fn handle_grid_step_events(
+    mut grid_events: EventReader<GridStepChangeEvent>,
+    mut grid_settings: ResMut<GridSettings>,
+) {
+    for event in grid_events.read() {
+        grid_settings.step = event.new_step;
+        info!("Grid step changed to: {}", event.new_step);
+    }
 }
