@@ -10,10 +10,11 @@ use bevy::{
     winit::WinitSettings,
 };
 
-// Импорты модулей (убрали buttons.rs - он устарел)
+// Импорты модулей
 mod camera_system;
 mod coordinate_systems;
-mod events; // Новый централизованный модуль событий
+mod events;
+mod font_resource; // НОВЫЙ модуль для шрифта
 mod grid;
 mod line_drawing;
 mod orbit_camera;
@@ -22,6 +23,7 @@ mod ui_panels;
 
 // Используем события из централизованного модуля
 use events::*;
+use font_resource::{setup_global_font, GlobalFont}; // ИМПОРТ глобального шрифта
 
 use camera_system::{
     camera_drag_pan_system, camera_scroll_zoom_system, center_camera_on_lines_system,
@@ -58,7 +60,6 @@ pub struct CameraState {
 
 fn main() {
     let mut app = App::new();
-
     app
         // Настройки плагинов для Bevy 0.15+
         .add_plugins((
@@ -115,8 +116,11 @@ fn main() {
         .insert_resource(CameraZoom::default())
         .insert_resource(CoordinateSettings::default())
         .insert_resource(CursorInfo::default())
-        // Startup системы
-        .add_systems(Startup, (setup, setup_grid, setup_ui_panels))
+        // ДОБАВЛЯЕМ setup_global_font в Startup системы
+        .add_systems(
+            Startup,
+            ((setup_global_font, setup, setup_grid, setup_ui_panels).chain(),),
+        )
         // Update системы - хорошая организация для Bevy 0.15+
         .add_systems(
             Update,

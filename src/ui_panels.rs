@@ -2,7 +2,8 @@ use crate::{
     coordinate_systems::{
         formatting, AngleUnit, CoordinatePoint, CoordinateSettings, CoordinateSystem,
     },
-    events::*, // Используем централизованный модуль событий
+    events::*,                 // Используем централизованный модуль событий
+    font_resource::GlobalFont, // ИМПОРТ глобального шрифта
     line_drawing::DrawableLine,
 };
 use bevy::prelude::*;
@@ -30,8 +31,11 @@ pub struct CoordinateDisplay;
 #[derive(Component)]
 pub struct LineInfoDisplay;
 
-/// Настройка основного UI для Bevy 0.15+ без ChildBuilder
-pub fn setup_ui_panels(mut commands: Commands) {
+/// Настройка основного UI для Bevy 0.15+ с глобальным шрифтом
+pub fn setup_ui_panels(
+    mut commands: Commands,
+    global_font: Res<GlobalFont>, // ИСПОЛЬЗУЕМ глобальный шрифт
+) {
     // Создаем главный контейнер UI
     let main_container = commands
         .spawn((
@@ -47,26 +51,26 @@ pub fn setup_ui_panels(mut commands: Commands) {
         .id();
 
     // === ВЕРХНЯЯ ПАНЕЛЬ ИНСТРУМЕНТОВ ===
-    let tool_panel = create_tool_panel(&mut commands);
+    let tool_panel = create_tool_panel(&mut commands, &global_font);
     commands
         .entity(main_container)
         .insert_children(0, &[tool_panel]);
 
     // === СРЕДНЯЯ ОБЛАСТЬ (с боковыми панелями и рабочим пространством) ===
-    let middle_area = create_middle_area(&mut commands);
+    let middle_area = create_middle_area(&mut commands, &global_font);
     commands
         .entity(main_container)
         .insert_children(0, &[middle_area]);
 
     // === НИЖНЯЯ СТАТУС-ПАНЕЛЬ ===
-    let status_panel = create_status_panel(&mut commands);
+    let status_panel = create_status_panel(&mut commands, &global_font);
     commands
         .entity(main_container)
         .insert_children(0, &[status_panel]);
 }
 
 /// Создание верхней панели инструментов
-fn create_tool_panel(commands: &mut Commands) -> Entity {
+fn create_tool_panel(commands: &mut Commands, global_font: &Res<GlobalFont>) -> Entity {
     let tool_panel = commands
         .spawn((
             Node {
@@ -86,16 +90,17 @@ fn create_tool_panel(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Создаем кнопки как отдельные сущности
-    let line_button = create_button(commands, "Отрезок", UIAction::CreateLine);
-    let delete_button = create_button(commands, "Удалить все", UIAction::DeleteAll);
+    // Создаем кнопки с РУССКИМ ТЕКСТОМ
+    let line_button = create_button(commands, global_font, "Линия", UIAction::CreateLine);
+    let delete_button = create_button(commands, global_font, "Удалить всё", UIAction::DeleteAll);
     let separator1 = create_separator(commands);
     let coord_button = create_button(
         commands,
-        "Декартовы/Полярные",
+        global_font,
+        "Координаты",
         UIAction::ToggleCoordinateSystem,
     );
-    let angle_button = create_button(commands, "Градусы/Радианы", UIAction::ToggleAngleUnit);
+    let angle_button = create_button(commands, global_font, "Углы", UIAction::ToggleAngleUnit);
 
     // Добавляем кнопки как дочерние к панели
     commands.entity(tool_panel).insert_children(
@@ -113,7 +118,7 @@ fn create_tool_panel(commands: &mut Commands) -> Entity {
 }
 
 /// Создание средней области с боковыми панелями
-fn create_middle_area(commands: &mut Commands) -> Entity {
+fn create_middle_area(commands: &mut Commands, global_font: &Res<GlobalFont>) -> Entity {
     let middle_area = commands
         .spawn((
             Node {
@@ -127,7 +132,7 @@ fn create_middle_area(commands: &mut Commands) -> Entity {
         .id();
 
     // Левая панель настроек
-    let settings_panel = create_settings_panel(commands);
+    let settings_panel = create_settings_panel(commands, global_font);
     commands
         .entity(middle_area)
         .insert_children(0, &[settings_panel]);
@@ -148,7 +153,7 @@ fn create_middle_area(commands: &mut Commands) -> Entity {
         .insert_children(0, &[work_area]);
 
     // Правая панель информации
-    let info_panel = create_info_panel(commands);
+    let info_panel = create_info_panel(commands, global_font);
     commands
         .entity(middle_area)
         .insert_children(0, &[info_panel]);
@@ -157,7 +162,7 @@ fn create_middle_area(commands: &mut Commands) -> Entity {
 }
 
 /// Создание левой панели настроек
-fn create_settings_panel(commands: &mut Commands) -> Entity {
+fn create_settings_panel(commands: &mut Commands, global_font: &Res<GlobalFont>) -> Entity {
     let settings_panel = commands
         .spawn((
             Node {
@@ -176,11 +181,12 @@ fn create_settings_panel(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Заголовок панели
+    // Заголовок панели с РУССКИМ ТЕКСТОМ
     let title = commands
         .spawn((
             Text::new("Настройки"),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 16.0,
                 ..default()
             },
@@ -191,13 +197,13 @@ fn create_settings_panel(commands: &mut Commands) -> Entity {
     commands.entity(settings_panel).insert_children(0, &[title]);
 
     // Секция координатных систем
-    let coord_section = create_coordinate_section(commands);
+    let coord_section = create_coordinate_section(commands, global_font);
     commands
         .entity(settings_panel)
         .insert_children(0, &[coord_section]);
 
     // Секция настроек сетки
-    let grid_section = create_grid_section(commands);
+    let grid_section = create_grid_section(commands, global_font);
     commands
         .entity(settings_panel)
         .insert_children(0, &[grid_section]);
@@ -206,7 +212,7 @@ fn create_settings_panel(commands: &mut Commands) -> Entity {
 }
 
 /// Создание секции координатных систем
-fn create_coordinate_section(commands: &mut Commands) -> Entity {
+fn create_coordinate_section(commands: &mut Commands, global_font: &Res<GlobalFont>) -> Entity {
     let section = commands
         .spawn((
             Node {
@@ -218,11 +224,12 @@ fn create_coordinate_section(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Заголовок секции
+    // Заголовок секции с РУССКИМ ТЕКСТОМ
     let title = commands
         .spawn((
             Text::new("Система координат:"),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 12.0,
                 ..default()
             },
@@ -230,15 +237,17 @@ fn create_coordinate_section(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Кнопки координатных систем
-    let cartesian_button = create_small_button(commands, "Декартовы", UIAction::SetCartesian);
-    let polar_button = create_small_button(commands, "Полярные", UIAction::SetPolar);
+    // Кнопки координатных систем с РУССКИМ ТЕКСТОМ
+    let cartesian_button =
+        create_small_button(commands, global_font, "Декартовы", UIAction::SetCartesian);
+    let polar_button = create_small_button(commands, global_font, "Полярные", UIAction::SetPolar);
 
-    // Заголовок углов
+    // Заголовок углов с РУССКИМ ТЕКСТОМ
     let angle_title = commands
         .spawn((
             Text::new("Единицы углов:"),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 12.0,
                 ..default()
             },
@@ -246,9 +255,11 @@ fn create_coordinate_section(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Кнопки единиц углов
-    let degrees_button = create_small_button(commands, "Градусы", UIAction::SetDegrees);
-    let radians_button = create_small_button(commands, "Радианы", UIAction::SetRadians);
+    // Кнопки единиц углов с РУССКИМ ТЕКСТОМ
+    let degrees_button =
+        create_small_button(commands, global_font, "Градусы", UIAction::SetDegrees);
+    let radians_button =
+        create_small_button(commands, global_font, "Радианы", UIAction::SetRadians);
 
     // Добавляем все элементы в секцию
     commands.entity(section).insert_children(
@@ -267,7 +278,7 @@ fn create_coordinate_section(commands: &mut Commands) -> Entity {
 }
 
 /// Создание секции настроек сетки
-fn create_grid_section(commands: &mut Commands) -> Entity {
+fn create_grid_section(commands: &mut Commands, global_font: &Res<GlobalFont>) -> Entity {
     let section = commands
         .spawn((
             Node {
@@ -279,11 +290,12 @@ fn create_grid_section(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Заголовок секции
+    // Заголовок секции с РУССКИМ ТЕКСТОМ
     let title = commands
         .spawn((
             Text::new("Настройки сетки:"),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 12.0,
                 ..default()
             },
@@ -292,12 +304,13 @@ fn create_grid_section(commands: &mut Commands) -> Entity {
         .id();
     commands.entity(section).insert_children(0, &[title]);
 
-    // Кнопки шага сетки
+    // Кнопки шага сетки с РУССКИМ ТЕКСТОМ
     let grid_steps = [0.5, 1.0, 2.0, 5.0];
     let mut grid_buttons = Vec::new();
     for step in grid_steps {
         let button = create_small_button(
             commands,
+            global_font,
             &format!("Шаг: {}", step),
             UIAction::SetGridStep(step),
         );
@@ -311,7 +324,7 @@ fn create_grid_section(commands: &mut Commands) -> Entity {
 }
 
 /// Создание правой панели информации
-fn create_info_panel(commands: &mut Commands) -> Entity {
+fn create_info_panel(commands: &mut Commands, global_font: &Res<GlobalFont>) -> Entity {
     let info_panel = commands
         .spawn((
             Node {
@@ -330,11 +343,12 @@ fn create_info_panel(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Заголовок панели
+    // Заголовок панели с РУССКИМ ТЕКСТОМ
     let title = commands
         .spawn((
             Text::new("Информация"),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 16.0,
                 ..default()
             },
@@ -342,11 +356,12 @@ fn create_info_panel(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Координаты курсора
+    // Координаты курсора с РУССКИМ ТЕКСТОМ
     let cursor_coords = commands
         .spawn((
             Text::new("X: -, Y: -"),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 11.0,
                 ..default()
             },
@@ -356,11 +371,12 @@ fn create_info_panel(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Информация о линиях
+    // Информация о линиях с РУССКИМ ТЕКСТОМ
     let line_info = commands
         .spawn((
             Text::new("Линий: 0"),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 11.0,
                 ..default()
             },
@@ -379,7 +395,7 @@ fn create_info_panel(commands: &mut Commands) -> Entity {
 }
 
 /// Создание нижней статус-панели
-fn create_status_panel(commands: &mut Commands) -> Entity {
+fn create_status_panel(commands: &mut Commands, global_font: &Res<GlobalFont>) -> Entity {
     let status_panel = commands
         .spawn((
             Node {
@@ -398,11 +414,12 @@ fn create_status_panel(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Статус текст
+    // Статус текст с РУССКИМ ТЕКСТОМ
     let status_text = commands
         .spawn((
             Text::new("Готов к работе"),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 10.0,
                 ..default()
             },
@@ -410,11 +427,12 @@ fn create_status_panel(commands: &mut Commands) -> Entity {
         ))
         .id();
 
-    // Подсказки горячих клавиш
+    // Подсказки горячих клавиш с РУССКИМ ТЕКСТОМ
     let hotkeys_text = commands
         .spawn((
             Text::new("F1-F4: Рендер | L: Линии | X: Координаты | U: Углы"),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 10.0,
                 ..default()
             },
@@ -430,8 +448,13 @@ fn create_status_panel(commands: &mut Commands) -> Entity {
     status_panel
 }
 
-/// Создание кнопки - Bevy 0.15+ синтаксис без ChildBuilder
-fn create_button(commands: &mut Commands, text: &str, action: UIAction) -> Entity {
+/// Создание кнопки - Bevy 0.15+ синтаксис с глобальным шрифтом
+fn create_button(
+    commands: &mut Commands,
+    global_font: &Res<GlobalFont>,
+    text: &str,
+    action: UIAction,
+) -> Entity {
     let button = commands
         .spawn((
             Button,
@@ -451,11 +474,12 @@ fn create_button(commands: &mut Commands, text: &str, action: UIAction) -> Entit
         ))
         .id();
 
-    // Создаем текст как дочерний элемент
+    // Создаем текст как дочерний элемент с ГЛОБАЛЬНЫМ ШРИФТОМ
     let text_entity = commands
         .spawn((
             Text::new(text),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 11.0,
                 ..default()
             },
@@ -470,7 +494,12 @@ fn create_button(commands: &mut Commands, text: &str, action: UIAction) -> Entit
 }
 
 /// Создание маленькой кнопки
-fn create_small_button(commands: &mut Commands, text: &str, action: UIAction) -> Entity {
+fn create_small_button(
+    commands: &mut Commands,
+    global_font: &Res<GlobalFont>,
+    text: &str,
+    action: UIAction,
+) -> Entity {
     let button = commands
         .spawn((
             Button,
@@ -490,11 +519,12 @@ fn create_small_button(commands: &mut Commands, text: &str, action: UIAction) ->
         ))
         .id();
 
-    // Создаем текст как дочерний элемент
+    // Создаем текст как дочерний элемент с ГЛОБАЛЬНЫМ ШРИФТОМ
     let text_entity = commands
         .spawn((
             Text::new(text),
             TextFont {
+                font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 10.0,
                 ..default()
             },
@@ -546,6 +576,7 @@ pub fn handle_ui_interactions(
                     };
                     coordinate_events.write(CoordinateSystemChangeEvent { new_system });
                 }
+
                 UIAction::ToggleAngleUnit => {
                     let new_unit = match coordinate_settings.angle_unit {
                         AngleUnit::Degrees => AngleUnit::Radians,
@@ -553,6 +584,7 @@ pub fn handle_ui_interactions(
                     };
                     angle_events.write(AngleUnitChangeEvent { new_unit });
                 }
+
                 _ => {
                     // Для остальных действий используем централизованную логику
                     action.emit_events(
@@ -616,7 +648,6 @@ pub fn track_cursor_position(
     let Ok((camera, camera_transform)) = camera_query.single() else {
         return;
     };
-
     let Ok(window) = window_query.single() else {
         return;
     };
