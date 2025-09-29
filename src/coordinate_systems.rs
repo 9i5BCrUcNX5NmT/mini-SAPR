@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use std::f32::consts::PI;
 
 /// Режим системы координат
 #[derive(Clone, Copy, PartialEq, Debug, Default)]

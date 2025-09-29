@@ -23,7 +23,7 @@ mod ui_panels;
 
 // Используем события из централизованного модуля
 use events::*;
-use font_resource::{setup_global_font, GlobalFont}; // ИМПОРТ глобального шрифта
+use font_resource::{setup_global_font}; // ИМПОРТ глобального шрифта
 
 use camera_system::{
     camera_drag_pan_system, camera_scroll_zoom_system, center_camera_on_lines_system,

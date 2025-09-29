@@ -4,7 +4,7 @@ use bevy::window::PrimaryWindow;
 
 use crate::{
     coordinate_systems::{
-        conversions, formatting, CoordinatePoint, CoordinateSettings, CoordinateSystem,
+        formatting, CoordinatePoint, CoordinateSettings, CoordinateSystem,
     },
     events::*, // Используем централизованные события
 };

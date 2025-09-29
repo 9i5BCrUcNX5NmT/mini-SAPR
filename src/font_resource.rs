@@ -9,7 +9,7 @@ pub struct GlobalFont {
 /// Система инициализации глобального шрифта с проверками
 pub fn setup_global_font(mut commands: Commands, asset_server: Res<AssetServer>) {
     // ВАРИАНТ 1: Пытаемся загрузить внешний шрифт
-    let font_path = r"fonts\Hack\HackNerdFont-Regular.ttf";
+    let font_path = r"fonts/Hack/HackNerdFont-Regular.ttf";
     let font_handle = asset_server.load(font_path);
 
     // Выводим отладочную информацию
@@ -21,17 +21,17 @@ pub fn setup_global_font(mut commands: Commands, asset_server: Res<AssetServer>)
     });
 }
 
-/// АЛЬТЕРНАТИВНАЯ система с встроенным шрифтом Bevy
-pub fn setup_builtin_font(mut commands: Commands) {
-    // Используем встроенный шрифт Bevy (FiraSans)
-    let builtin_font = Handle::<Font>::default();
+// /// АЛЬТЕРНАТИВНАЯ система с встроенным шрифтом Bevy
+// pub fn setup_builtin_font(mut commands: Commands) {
+//     // Используем встроенный шрифт Bevy (FiraSans)
+//     let builtin_font = Handle::<Font>::default();
 
-    info!("🔤 Используем встроенный шрифт Bevy");
+//     info!("🔤 Используем встроенный шрифт Bevy");
 
-    commands.insert_resource(GlobalFont {
-        handle: builtin_font,
-    });
-}
+//     commands.insert_resource(GlobalFont {
+//         handle: builtin_font,
+//     });
+// }
 
 // /// Система с загрузкой шрифта из массива байт (встраиваем в бинарь)
 // pub fn setup_embedded_font(mut commands: Commands, asset_server: Res<AssetServer>) {
