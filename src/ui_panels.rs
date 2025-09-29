@@ -94,6 +94,7 @@ fn create_tool_panel(commands: &mut Commands, global_font: &Res<GlobalFont>) -> 
     let line_button = create_button(commands, global_font, "Линия", UIAction::CreateLine);
     let delete_button = create_button(commands, global_font, "Удалить всё", UIAction::DeleteAll);
     let separator1 = create_separator(commands);
+
     let coord_button = create_button(
         commands,
         global_font,
@@ -194,21 +195,78 @@ fn create_settings_panel(commands: &mut Commands, global_font: &Res<GlobalFont>)
             Name::new("SettingsTitle"),
         ))
         .id();
-    commands.entity(settings_panel).insert_children(0, &[title]);
 
-    // Секция координатных систем
+    // ДОБАВЛЯЕМ СЕКЦИЮ КАМЕРЫ
+    let camera_section = create_camera_section(commands, global_font);
     let coord_section = create_coordinate_section(commands, global_font);
-    commands
-        .entity(settings_panel)
-        .insert_children(0, &[coord_section]);
-
-    // Секция настроек сетки
     let grid_section = create_grid_section(commands, global_font);
+
+    // ПРАВИЛЬНЫЙ ПОРЯДОК ДОБАВЛЕНИЯ (последний добавленный = первый показанный)
     commands
         .entity(settings_panel)
         .insert_children(0, &[grid_section]);
+    commands
+        .entity(settings_panel)
+        .insert_children(0, &[coord_section]);
+    commands
+        .entity(settings_panel)
+        .insert_children(0, &[camera_section]);
+    commands.entity(settings_panel).insert_children(0, &[title]);
 
     settings_panel
+}
+
+/// НОВАЯ ФУНКЦИЯ: Создание секции настроек камеры
+fn create_camera_section(commands: &mut Commands, global_font: &Res<GlobalFont>) -> Entity {
+    let section = commands
+        .spawn((
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(5.0),
+                ..default()
+            },
+            Name::new("CameraSection"),
+        ))
+        .id();
+
+    // Заголовок секции
+    let title = commands
+        .spawn((
+            Text::new("Управление камерой:"),
+            TextFont {
+                font: global_font.handle.clone(),
+                font_size: 12.0,
+                ..default()
+            },
+            TextColor(Color::srgb(0.7, 0.7, 0.7)),
+        ))
+        .id();
+
+    // Кнопки управления камерой
+    let toggle_camera_button = create_small_button(
+        commands,
+        global_font,
+        "Переключить вид",
+        UIAction::ToggleCamera,
+    );
+
+    let reset_camera_button = create_small_button(
+        commands,
+        global_font,
+        "Сброс позиции",
+        UIAction::ResetCamera,
+    );
+
+    // ПРАВИЛЬНЫЙ ПОРЯДОК ДОБАВЛЕНИЯ
+    commands
+        .entity(section)
+        .insert_children(0, &[reset_camera_button]);
+    commands
+        .entity(section)
+        .insert_children(0, &[toggle_camera_button]);
+    commands.entity(section).insert_children(0, &[title]);
+
+    section
 }
 
 /// Создание секции координатных систем
@@ -261,18 +319,19 @@ fn create_coordinate_section(commands: &mut Commands, global_font: &Res<GlobalFo
     let radians_button =
         create_small_button(commands, global_font, "Радианы", UIAction::SetRadians);
 
-    // Добавляем все элементы в секцию
-    commands.entity(section).insert_children(
-        0,
-        &[
-            title,
-            cartesian_button,
-            polar_button,
-            angle_title,
-            degrees_button,
-            radians_button,
-        ],
-    );
+    // ПРАВИЛЬНЫЙ ПОРЯДОК ДОБАВЛЕНИЯ
+    commands
+        .entity(section)
+        .insert_children(0, &[radians_button]);
+    commands
+        .entity(section)
+        .insert_children(0, &[degrees_button]);
+    commands.entity(section).insert_children(0, &[angle_title]);
+    commands.entity(section).insert_children(0, &[polar_button]);
+    commands
+        .entity(section)
+        .insert_children(0, &[cartesian_button]);
+    commands.entity(section).insert_children(0, &[title]);
 
     section
 }
@@ -302,7 +361,6 @@ fn create_grid_section(commands: &mut Commands, global_font: &Res<GlobalFont>) -
             TextColor(Color::srgb(0.7, 0.7, 0.7)),
         ))
         .id();
-    commands.entity(section).insert_children(0, &[title]);
 
     // Кнопки шага сетки с РУССКИМ ТЕКСТОМ
     let grid_steps = [0.5, 1.0, 2.0, 5.0];
@@ -317,8 +375,11 @@ fn create_grid_section(commands: &mut Commands, global_font: &Res<GlobalFont>) -
         grid_buttons.push(button);
     }
 
-    // Добавляем кнопки в секцию
-    commands.entity(section).insert_children(0, &grid_buttons);
+    // ПРАВИЛЬНЫЙ ПОРЯДОК ДОБАВЛЕНИЯ (в обратном порядке)
+    for button in grid_buttons.into_iter().rev() {
+        commands.entity(section).insert_children(0, &[button]);
+    }
+    commands.entity(section).insert_children(0, &[title]);
 
     section
 }
@@ -386,10 +447,12 @@ fn create_info_panel(commands: &mut Commands, global_font: &Res<GlobalFont>) -> 
         ))
         .id();
 
-    // Добавляем элементы в панель
+    // ПРАВИЛЬНЫЙ ПОРЯДОК ДОБАВЛЕНИЯ
+    commands.entity(info_panel).insert_children(0, &[line_info]);
     commands
         .entity(info_panel)
-        .insert_children(0, &[title, cursor_coords, line_info]);
+        .insert_children(0, &[cursor_coords]);
+    commands.entity(info_panel).insert_children(0, &[title]);
 
     info_panel
 }
@@ -427,10 +490,10 @@ fn create_status_panel(commands: &mut Commands, global_font: &Res<GlobalFont>) -
         ))
         .id();
 
-    // Подсказки горячих клавиш с РУССКИМ ТЕКСТОМ
+    // ОБНОВЛЕННЫЕ подсказки горячих клавиш с упоминанием камеры
     let hotkeys_text = commands
         .spawn((
-            Text::new("F1-F4: Рендер | L: Линии | X: Координаты | U: Углы"),
+            Text::new("F1-F4: Рендер | L: Линии | X: Координаты | U: Углы | C: Камера"),
             TextFont {
                 font: global_font.handle.clone(), // ИСПОЛЬЗУЕМ глобальный шрифт
                 font_size: 10.0,
